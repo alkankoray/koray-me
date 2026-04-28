@@ -7,7 +7,7 @@ const siteConfig: SiteConfig = {
         src: avatar,
         alt: 'Koray Alkan'
     },
-    title: 'Koray',
+    title: 'koray.me',
     subtitle: 'Personal blog',
     description: 'Personal blog and writings by Koray Alkan.',
     image: {
