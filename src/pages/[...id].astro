@@ -1,31 +1,129 @@
 ---
 import { type CollectionEntry, getCollection, render } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Button from '../components/Button.astro';
+import FormattedDate from '../components/FormattedDate.astro';
+import PostPreview from '../components/PostPreview.astro';
+import Subscribe from '../components/Subscribe.astro';
+import { sortItemsByDateDesc } from '../utils/data-utils';
+import { slugify } from '../utils/common-utils';
 
 export async function getStaticPaths() {
     const pages = await getCollection('pages');
-    return pages.map((page) => {
-        return {
-            params: { id: page.id },
-            props: { page }
-        };
-    });
+    const posts = (await getCollection('blog')).sort(sortItemsByDateDesc);
+    const postCount = posts.length;
+
+    const pagePaths = pages.map((page) => ({
+        params: { id: page.id },
+        props: { kind: 'page' as const, page }
+    }));
+
+    const postPaths = posts.map((post, index) => ({
+        params: { id: post.id },
+        props: {
+            kind: 'post' as const,
+            post,
+            prevPost: index + 1 !== postCount ? posts[index + 1] : null,
+            nextPost: index !== 0 ? posts[index - 1] : null
+        }
+    }));
+
+    return [...pagePaths, ...postPaths];
 }
 
-type Props = { page: CollectionEntry<'pages'> };
+type Props =
+    | { kind: 'page'; page: CollectionEntry<'pages'> }
+    | {
+          kind: 'post';
+          post: CollectionEntry<'blog'>;
+          prevPost: CollectionEntry<'blog'> | null;
+          nextPost: CollectionEntry<'blog'> | null;
+      };
 
-const { page } = Astro.props;
-const { title, seo } = page.data;
-const { Content } = await render(page);
+const props = Astro.props as Props;
+const { href } = Astro.url;
+
+const entry = props.kind === 'page' ? props.page : props.post;
+const { Content } = await render(entry);
+
+const seo = entry.data.seo;
+const layoutTitle = seo?.title ?? entry.data.title;
+const layoutDescription = seo?.description ?? (props.kind === 'post' ? props.post.data.excerpt : undefined);
+const pageType = props.kind === 'post' ? 'article' : 'website';
 ---
 
-<BaseLayout title={seo?.title ?? title} description={seo?.description} image={seo?.image} showHeader={false}>
+<BaseLayout title={layoutTitle} description={layoutDescription} image={seo?.image} pageType={pageType} showHeader={false}>
     <article class="mb-16 sm:mb-24">
         <header class="mb-8">
-            <h1 class="font-serif text-3xl leading-tight font-medium sm:text-5xl sm:leading-tight">{title}</h1>
+            <h1 class="font-serif text-3xl leading-tight font-medium sm:text-5xl sm:leading-tight">{entry.data.title}</h1>
+            {
+                props.kind === 'post' && (
+                    <div class="mt-4 text-sm">
+                        <FormattedDate date={props.post.data.publishDate} />
+                        {props.post.data.updatedDate && (
+                            <>
+                                {' '}
+                                <span>
+                                    (Updated on <FormattedDate date={props.post.data.updatedDate} />)
+                                </span>
+                            </>
+                        )}
+                    </div>
+                )
+            }
         </header>
         <div class="prose sm:prose-lg max-w-none">
             <Content />
         </div>
+        {
+            props.kind === 'post' && (
+                <div class="mt-8 flex flex-wrap items-center justify-between gap-6 text-sm sm:mt-12 sm:text-base">
+                    {props.post.data.tags.length > 0 && (
+                        <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                            {props.post.data.tags.map((tag) => (
+                                <a class="text-main hover:underline" href={`/tags/${slugify(tag)}`}>
+                                    #{tag}
+                                </a>
+                            ))}
+                        </div>
+                    )}
+                    <Button class="copy-url-button" aria-label="Copy link" data-url={href} data-tooltip-default="Copy link" data-tooltip-success="Copied">
+                        Share
+                    </Button>
+                </div>
+            )
+        }
     </article>
+    {
+        props.kind === 'post' && (props.prevPost || props.nextPost) && (
+            <div class="my-16 sm:my-24">
+                <h2 class="mb-12 font-serif text-xl italic sm:mb-16 sm:text-2xl">Read Next</h2>
+                {props.nextPost && <PostPreview post={props.nextPost} class="mb-10 sm:mb-12" headingLevel="h3" />}
+                {props.prevPost && <PostPreview post={props.prevPost} class="mb-10 sm:mb-12" headingLevel="h3" />}
+            </div>
+        )
+    }
+    {props.kind === 'post' && <Subscribe class="my-16 sm:my-24" />}
 </BaseLayout>
+
+<script>
+    document.addEventListener('astro:page-load', () => {
+        const copyUrlButton = document.querySelector('.copy-url-button') as HTMLButtonElement;
+        copyUrlButton?.addEventListener('click', async () => {
+            await copyUrl(copyUrlButton);
+        });
+
+        async function copyUrl(button: HTMLButtonElement) {
+            let url = button.getAttribute('data-url') || '';
+            let label = button.innerText;
+
+            await navigator.clipboard.writeText(url);
+
+            button.innerText = 'Copied';
+
+            setTimeout(() => {
+                button.innerText = label;
+            }, 2500);
+        }
+    });
+</script>
