@@ -3,7 +3,9 @@ title: Heroku and My Rental Agency
 excerpt: A story of how software can be used for fun, escalations, and getting results — all at once. A Python app on Heroku that automates email reminders until my rental agency finally returned my deposit.
 publishDate: 'Jun 16 2020'
 tags:
-  - software productivity python
+  - software
+  - productivity
+  - python
 seo:
   description: How I built a small Python app on Heroku to automate reminder emails to my rental agency until they refunded my deposit.
 ---
